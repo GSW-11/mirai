@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2020 Mamoe Technologies and contributors.
+ * Copyright 2019-2021 Mamoe Technologies and contributors.
  *
  *  此源代码的使用受 GNU AFFERO GENERAL PUBLIC LICENSE version 3 许可证的约束, 可以在以下链接找到该许可证.
  *  Use of this source code is governed by the GNU AGPLv3 license that can be found through the following link.
@@ -10,9 +10,9 @@
 package net.mamoe.mirai.internal.network.protocol.data.jce
 
 import kotlinx.serialization.Serializable
-import net.mamoe.mirai.internal.network.protocol.packet.EMPTY_BYTE_ARRAY
 import net.mamoe.mirai.internal.utils.io.JceStruct
 import net.mamoe.mirai.internal.utils.io.serialization.tars.TarsId
+import net.mamoe.mirai.utils.EMPTY_BYTE_ARRAY
 
 private val EMPTY_MAP = mapOf<String, String>()
 
@@ -27,20 +27,20 @@ internal class RequestPacket(
     @TarsId(7) @JvmField val sBuffer: ByteArray = EMPTY_BYTE_ARRAY,
     @TarsId(8) @JvmField val iTimeout: Int? = 0,
     @TarsId(9) @JvmField val context: Map<String, String>? = EMPTY_MAP,
-    @TarsId(10) @JvmField val status: Map<String, String>? = EMPTY_MAP
+    @TarsId(10) @JvmField val status: Map<String, String>? = EMPTY_MAP,
 ) : JceStruct
 
 @Serializable
 internal class RequestDataVersion3(
-    @TarsId(0) @JvmField val map: Map<String, ByteArray> // 注意: ByteArray 不能直接放序列化的 JceStruct!! 要放类似 RequestDataStructSvcReqRegister 的
+    @TarsId(0) @JvmField val map: Map<String, ByteArray>, // 注意: ByteArray 不能直接放序列化的 JceStruct!! 要放类似 RequestDataStructSvcReqRegister 的
 ) : JceStruct
 
 @Serializable
 internal class RequestDataVersion2(
-    @TarsId(0) @JvmField val map: Map<String, Map<String, ByteArray>>
+    @TarsId(0) @JvmField val map: Map<String, Map<String, ByteArray>>,
 ) : JceStruct
 
 @Serializable
 internal class RequestDataStructSvcReqRegister(
-    @TarsId(0) @JvmField val struct: SvcReqRegister
+    @TarsId(0) @JvmField val struct: SvcReqRegister,
 ) : JceStruct

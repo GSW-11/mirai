@@ -10,6 +10,7 @@
 package net.mamoe.mirai.internal.network.protocol.packet.login.wtlogin
 
 import net.mamoe.mirai.internal.network.QQAndroidClient
+import net.mamoe.mirai.internal.network.miscBitMap
 import net.mamoe.mirai.internal.network.protocol.packet.*
 import net.mamoe.mirai.internal.network.protocol.packet.login.WtLogin
 import net.mamoe.mirai.internal.network.subAppId
@@ -20,7 +21,7 @@ internal object WtLogin20 : WtLoginExt {
         client: QQAndroidClient
     ) = WtLogin.Login.buildLoginOutgoingPacket(client, bodyType = 2) { sequenceId ->
         writeSsoPacket(client, client.subAppId, WtLogin.Login.commandName, sequenceId = sequenceId) {
-            writeOicqRequestPacket(client, EncryptMethodECDH(client.ecdh), 0x0810) {
+            writeOicqRequestPacket(client, commandId = 0x0810) {
                 writeShort(20) // subCommand
                 writeShort(4) // count of TLVs, probably ignored by server?
                 t8(2052)

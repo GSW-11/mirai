@@ -1,10 +1,10 @@
 /*
  * Copyright 2019-2021 Mamoe Technologies and contributors.
  *
- *  此源代码的使用受 GNU AFFERO GENERAL PUBLIC LICENSE version 3 许可证的约束, 可以在以下链接找到该许可证.
- *  Use of this source code is governed by the GNU AGPLv3 license that can be found through the following link.
+ * 此源代码的使用受 GNU AFFERO GENERAL PUBLIC LICENSE version 3 许可证的约束, 可以在以下链接找到该许可证.
+ * Use of this source code is governed by the GNU AGPLv3 license that can be found through the following link.
  *
- *  https://github.com/mamoe/mirai/blob/master/LICENSE
+ * https://github.com/mamoe/mirai/blob/dev/LICENSE
  */
 
 @file:Suppress("INAPPLICABLE_JVM_NAME", "DEPRECATION_ERROR", "INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
@@ -15,20 +15,25 @@ package net.mamoe.mirai.internal.contact
 import net.mamoe.mirai.LowLevelApi
 import net.mamoe.mirai.Mirai
 import net.mamoe.mirai.contact.*
+import net.mamoe.mirai.contact.announcement.Announcements
 import net.mamoe.mirai.data.GroupInfo
 import net.mamoe.mirai.data.MemberInfo
 import net.mamoe.mirai.event.broadcast
 import net.mamoe.mirai.event.events.*
 import net.mamoe.mirai.internal.QQAndroidBot
+import net.mamoe.mirai.internal.contact.announcement.AnnouncementsImpl
 import net.mamoe.mirai.internal.contact.info.MemberInfoImpl
-import net.mamoe.mirai.internal.message.*
-import net.mamoe.mirai.internal.network.BdhSession
-import net.mamoe.mirai.internal.network.handler.QQAndroidBotNetworkHandler
-import net.mamoe.mirai.internal.network.highway.*
+import net.mamoe.mirai.internal.message.OfflineGroupImage
+import net.mamoe.mirai.internal.network.context.BdhSession
+import net.mamoe.mirai.internal.network.handler.NetworkHandler
+import net.mamoe.mirai.internal.network.handler.logger
+import net.mamoe.mirai.internal.network.highway.ChannelKind
+import net.mamoe.mirai.internal.network.highway.Highway
 import net.mamoe.mirai.internal.network.highway.ResourceKind.GROUP_IMAGE
 import net.mamoe.mirai.internal.network.highway.ResourceKind.GROUP_VOICE
+import net.mamoe.mirai.internal.network.highway.postPtt
+import net.mamoe.mirai.internal.network.highway.tryServersUpload
 import net.mamoe.mirai.internal.network.protocol.data.proto.Cmd0x388
-import net.mamoe.mirai.internal.network.protocol.packet.EMPTY_BYTE_ARRAY
 import net.mamoe.mirai.internal.network.protocol.packet.chat.TroopEssenceMsgManager
 import net.mamoe.mirai.internal.network.protocol.packet.chat.image.ImgStore
 import net.mamoe.mirai.internal.network.protocol.packet.chat.voice.PttStore
@@ -36,8 +41,8 @@ import net.mamoe.mirai.internal.network.protocol.packet.chat.voice.voiceCodec
 import net.mamoe.mirai.internal.network.protocol.packet.list.ProfileService
 import net.mamoe.mirai.internal.utils.GroupPkgMsgParsingCache
 import net.mamoe.mirai.internal.utils.RemoteFileImpl
-import net.mamoe.mirai.internal.utils.broadcastWithBot
 import net.mamoe.mirai.internal.utils.io.serialization.toByteArray
+import net.mamoe.mirai.internal.utils.subLogger
 import net.mamoe.mirai.message.MessageReceipt
 import net.mamoe.mirai.message.data.*
 import net.mamoe.mirai.utils.*
@@ -63,7 +68,7 @@ internal class GroupImpl(
     coroutineContext: CoroutineContext,
     override val id: Long,
     groupInfo: GroupInfo,
-    members: Sequence<MemberInfo>
+    members: Sequence<MemberInfo>,
 ) : Group, AbstractContact(bot, coroutineContext) {
     companion object
 
@@ -90,6 +95,13 @@ internal class GroupImpl(
         }
     })
 
+    override val announcements: Announcements by lazy {
+        AnnouncementsImpl(
+            this,
+            bot.network.logger.subLogger("Group $id")
+        )
+    }
+
     val groupPkgMsgParsingCache = GroupPkgMsgParsingCache()
 
     override suspend fun quit(): Boolean {
@@ -109,7 +121,7 @@ internal class GroupImpl(
                 }
             }
         }
-        BotLeaveEvent.Active(this).broadcastWithBot(bot)
+        BotLeaveEvent.Active(this).broadcast()
         return true
     }
 
@@ -146,7 +158,7 @@ internal class GroupImpl(
         if (BeforeImageUploadEvent(this, resource).broadcast().isCancelled) {
             throw EventCancelledException("cancelled by BeforeImageUploadEvent.ToGroup")
         }
-        bot.network.run<QQAndroidBotNetworkHandler, Image> {
+        bot.network.run<NetworkHandler, Image> {
             val response: ImgStore.GroupPicUp.Response = ImgStore.GroupPicUp(
                 bot.client,
                 uin = bot.id,
@@ -204,7 +216,7 @@ internal class GroupImpl(
                         .toByteArray(Cmd0x388.ReqBody.serializer()),
                 )
             }.recoverCatchingSuppressed {
-                when (val resp = PttStore.GroupPttUp(bot.client, bot.id, id, resource).sendAndExpect()) {
+                when (val resp = PttStore.GroupPttUp(bot.client, bot.id, id, resource).sendAndExpect<Any>()) {
                     is PttStore.GroupPttUp.Response.RequireUpload -> {
                         tryServersUpload(
                             bot,
@@ -277,3 +289,4 @@ internal fun GroupImpl.newAnonymous(name: String, id: String): AnonymousMemberIm
         anonymousId = id,
     )
 ) as AnonymousMemberImpl
+

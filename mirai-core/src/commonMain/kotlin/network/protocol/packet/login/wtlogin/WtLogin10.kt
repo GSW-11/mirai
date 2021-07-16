@@ -24,6 +24,8 @@ internal object WtLogin10 : WtLoginExt {
     const val appId: Long = 16L
     operator fun invoke(
         client: QQAndroidClient,
+        subAppId: Long = 100,
+        mainSigMap: Int = client.mainSigMap
     ) = WtLogin.ExchangeEmp.buildLoginOutgoingPacket(client, bodyType = 2, key = ByteArray(16)) { sequenceId ->
         writeSsoPacket(
             client,
@@ -34,12 +36,12 @@ internal object WtLogin10 : WtLoginExt {
         ) {
             writeOicqRequestPacket(
                 client,
-                EncryptMethodECDH(client.ecdh),
+                commandId =
                 0x0810
             ) {
                 writeShort(11) // subCommand
                 writeShort(17)
-                t100(appId, 100, client.appClientVersion, client.ssoVersion, client.mainSigMap)
+                t100(appId, subAppId, client.appClientVersion, client.ssoVersion, mainSigMap)
                 t10a(client.wLoginSigInfo.tgt)
                 t116(client.miscBitMap, client.subSigMap)
                 t108(client.ksid)

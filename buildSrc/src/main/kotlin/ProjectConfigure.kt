@@ -14,6 +14,7 @@ import org.gradle.api.Project
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.testing.Test
+import org.gradle.api.tasks.bundling.Jar
 import org.gradle.kotlin.dsl.*
 import org.jetbrains.kotlin.gradle.dsl.*
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
@@ -31,10 +32,16 @@ fun Project.configureJvmTarget() {
     val defaultVer = JavaVersion.VERSION_1_8
 
     tasks.withType(KotlinJvmCompile::class.java) {
-        kotlinOptions.languageVersion = "1.4"
+        kotlinOptions.languageVersion = "1.5"
         kotlinOptions.jvmTarget = defaultVer.toString()
         kotlinOptions.freeCompilerArgs += "-Xjvm-default=all"
     }
+
+    tasks.withType(KotlinJvmCompile::class)
+        .filter { it.name.startsWith("compileTestKotlin") }
+        .forEach { task ->
+            task.kotlinOptions.freeCompilerArgs += "-Xopt-in=net.mamoe.mirai.utils.TestOnly"
+        }
 
     extensions.findByType(JavaPluginExtension::class.java)?.run {
         sourceCompatibility = defaultVer
@@ -70,28 +77,43 @@ fun Project.configureKotlinTestSettings() {
     tasks.withType(Test::class) {
         useJUnitPlatform()
     }
+    val b = "Auto-set for project '${project.path}'. (configureKotlinTestSettings)"
     when {
         isKotlinJvmProject -> {
             dependencies {
-                "testImplementation"(kotlin("test-junit5"))
+                "testImplementation"(kotlin("test-junit5"))?.because(b)
 
-                "testApi"("org.junit.jupiter:junit-jupiter-api:${Versions.junit}")
-                "testRuntimeOnly"("org.junit.jupiter:junit-jupiter-engine:${Versions.junit}")
+                "testApi"("org.junit.jupiter:junit-jupiter-api:${Versions.junit}")?.because(b)
+                "testRuntimeOnly"("org.junit.jupiter:junit-jupiter-engine:${Versions.junit}")?.because(b)
             }
         }
         isKotlinMpp -> {
             kotlinSourceSets?.forEach { sourceSet ->
-                if (sourceSet.name == "common") {
+                fun configureJvmTest(sourceSet: KotlinSourceSet) {
                     sourceSet.dependencies {
-                        implementation(kotlin("test"))
-                        implementation(kotlin("test-annotations-common"))
-                    }
-                } else {
-                    sourceSet.dependencies {
-                        implementation(kotlin("test-junit5"))
+                        implementation(kotlin("test-junit5"))?.because(b)
 
-                        implementation("org.junit.jupiter:junit-jupiter-api:${Versions.junit}")
-                        implementation("org.junit.jupiter:junit-jupiter-engine:${Versions.junit}")
+                        implementation("org.junit.jupiter:junit-jupiter-api:${Versions.junit}")?.because(b)
+                        runtimeOnly("org.junit.jupiter:junit-jupiter-engine:${Versions.junit}")?.because(b)
+                    }
+                }
+
+                val target = kotlinTargets.orEmpty()
+                    .find { it.name == sourceSet.name.substringBeforeLast("Main").substringBeforeLast("Test") }
+
+                when {
+                    sourceSet.name == "commonTest" -> {
+                        if (target?.platformType == KotlinPlatformType.jvm || target?.platformType == KotlinPlatformType.androidJvm) {
+                            configureJvmTest(sourceSet)
+                        } else {
+                            sourceSet.dependencies {
+                                implementation(kotlin("test"))?.because(b)
+                                implementation(kotlin("test-annotations-common"))?.because(b)
+                            }
+                        }
+                    }
+                    sourceSet.name.contains("test", ignoreCase = true) -> {
+                        configureJvmTest(sourceSet)
                     }
                 }
             }
@@ -99,14 +121,18 @@ fun Project.configureKotlinTestSettings() {
     }
 }
 
+val testExperimentalAnnotations = arrayOf(
+    "kotlin.ExperimentalUnsignedTypes",
+    "kotlin.time.ExperimentalTime",
+    "io.ktor.util.KtorExperimentalAPI",
+    "kotlin.io.path.ExperimentalPathApi"
+)
+
 val experimentalAnnotations = arrayOf(
     "kotlin.RequiresOptIn",
     "kotlin.contracts.ExperimentalContracts",
     "kotlin.experimental.ExperimentalTypeInference",
     "kotlin.ExperimentalUnsignedTypes",
-    "kotlin.time.ExperimentalTime",
-    "kotlin.io.path.ExperimentalPathApi",
-    "io.ktor.util.KtorExperimentalAPI",
 
     "kotlinx.serialization.ExperimentalSerializationApi",
 
@@ -135,6 +161,11 @@ fun KotlinSourceSet.configureKotlinExperimentalUsages() {
     experimentalAnnotations.forEach { a ->
         languageSettings.useExperimentalAnnotation(a)
     }
+    if (name.contains("test", ignoreCase = true)) {
+        testExperimentalAnnotations.forEach { a ->
+            languageSettings.useExperimentalAnnotation(a)
+        }
+    }
 }
 
 fun Project.configureFlattenSourceSets() {
@@ -148,6 +179,18 @@ fun Project.configureFlattenSourceSets() {
         findByName("test")?.apply {
             resources.setSrcDirs(listOf(projectDir.resolve("resources")))
             java.setSrcDirs(listOf(projectDir.resolve("test")))
+        }
+    }
+}
+
+fun Project.configureJarManifest() {
+    this.tasks.withType<Jar> {
+        manifest {
+            attributes(
+                "Implementation-Vendor" to "Mamoe Technologies",
+                "Implementation-Title" to this@configureJarManifest.name.toString(),
+                "Implementation-Version" to this@configureJarManifest.version.toString()
+            )
         }
     }
 }

@@ -29,13 +29,17 @@ import net.mamoe.mirai.internal.contact.info.MemberInfoImpl
 import net.mamoe.mirai.internal.network.MultiPacketBySequence
 import net.mamoe.mirai.internal.network.Packet
 import net.mamoe.mirai.internal.network.QQAndroidClient
+import net.mamoe.mirai.internal.network.components.ContactUpdater
+import net.mamoe.mirai.internal.network.handler.logger
 import net.mamoe.mirai.internal.network.protocol.data.jce.MsgInfo
 import net.mamoe.mirai.internal.network.protocol.data.jce.MsgType0x210
 import net.mamoe.mirai.internal.network.protocol.data.jce.OnlinePushPack
 import net.mamoe.mirai.internal.network.protocol.data.jce.RequestPacket
-import net.mamoe.mirai.internal.network.protocol.data.proto.*
+import net.mamoe.mirai.internal.network.protocol.data.proto.Submsgtype0x115
+import net.mamoe.mirai.internal.network.protocol.data.proto.Submsgtype0x122
 import net.mamoe.mirai.internal.network.protocol.data.proto.Submsgtype0x27.SubMsgType0x27.*
 import net.mamoe.mirai.internal.network.protocol.data.proto.Submsgtype0x44.Submsgtype0x44
+import net.mamoe.mirai.internal.network.protocol.data.proto.Submsgtype0xb3
 import net.mamoe.mirai.internal.network.protocol.data.proto.TroopTips0x857
 import net.mamoe.mirai.internal.network.protocol.packet.IncomingPacketFactory
 import net.mamoe.mirai.internal.network.protocol.packet.OutgoingPacket
@@ -437,7 +441,7 @@ private object Transformers732 : Map<Int, Lambda732> by mapOf(
             else -> {
                 /*
                 bot.network.logger.debug("unknown Transformer732 0xunknown type: ${dataBytes[0].toString(16)
-                    .toUpperCase()}")
+                    .uppercase()}")
                 bot.network.logger.debug("unknown Transformer732 0xdata= ${readBytes().toUHexString()}")
                 */
                 return@lambda732 emptySequence()
@@ -512,6 +516,37 @@ internal inline fun lambda528(crossinline block: suspend MsgType0x210.(QQAndroid
     }
 }
 
+@Serializable
+private class Wording(
+    @ProtoNumber(1) val itemID: Int = 0,
+    @ProtoNumber(2) val itemName: String = ""
+) : ProtoBuf
+
+@Serializable
+private class Sub8AMsgInfo(
+    @ProtoNumber(1) val fromUin: Long,
+    @ProtoNumber(2) val botUin: Long,
+    @ProtoNumber(3) val srcId: Int,
+    @ProtoNumber(4) val srcInternalId: Long,
+    @ProtoNumber(5) val time: Long,
+    @ProtoNumber(6) val random: Int,
+    @ProtoNumber(7) val pkgNum: Int, // 1
+    @ProtoNumber(8) val pkgIndex: Int, // 0
+    @ProtoNumber(9) val devSeq: Int, // 0
+    @ProtoNumber(12) val flag: Int, // 1
+    @ProtoNumber(13) val wording: Wording
+) : ProtoBuf
+
+@Serializable
+private class Sub8A(
+    @ProtoNumber(1) val msgInfo: List<Sub8AMsgInfo>,
+    @ProtoNumber(2) val appId: Int, // 1
+    @ProtoNumber(3) val instId: Int, // 1
+    @ProtoNumber(4) val longMessageFlag: Int, // 0
+    @ProtoNumber(5) val reserved: ByteArray? = null // struct{ boolean(1), boolean(2) }
+) : ProtoBuf
+
+
 // uSubMsgType to vProtobuf
 // 138 or 139: top_package/akln.java:1568
 // 66: top_package/nhz.java:269
@@ -522,35 +557,6 @@ internal inline fun lambda528(crossinline block: suspend MsgType0x210.(QQAndroid
 internal object Transformers528 : Map<Long, Lambda528> by mapOf(
 
     0x8AL to lambda528 { bot ->
-        @Serializable
-        class Wording(
-            @ProtoNumber(1) val itemID: Int = 0,
-            @ProtoNumber(2) val itemName: String = ""
-        ) : ProtoBuf
-
-        @Serializable
-        class Sub8AMsgInfo(
-            @ProtoNumber(1) val fromUin: Long,
-            @ProtoNumber(2) val botUin: Long,
-            @ProtoNumber(3) val srcId: Int,
-            @ProtoNumber(4) val srcInternalId: Long,
-            @ProtoNumber(5) val time: Long,
-            @ProtoNumber(6) val random: Int,
-            @ProtoNumber(7) val pkgNum: Int, // 1
-            @ProtoNumber(8) val pkgIndex: Int, // 0
-            @ProtoNumber(9) val devSeq: Int, // 0
-            @ProtoNumber(12) val flag: Int, // 1
-            @ProtoNumber(13) val wording: Wording
-        ) : ProtoBuf
-
-        @Serializable
-        class Sub8A(
-            @ProtoNumber(1) val msgInfo: List<Sub8AMsgInfo>,
-            @ProtoNumber(2) val appId: Int, // 1
-            @ProtoNumber(3) val instId: Int, // 1
-            @ProtoNumber(4) val longMessageFlag: Int, // 0
-            @ProtoNumber(5) val reserved: ByteArray? = null // struct{ boolean(1), boolean(2) }
-        ) : ProtoBuf
 
         return@lambda528 vProtobuf.loadAs(Sub8A.serializer()).msgInfo.asSequence()
             .filter { it.botUin == bot.id }.mapNotNull { info ->
@@ -619,7 +625,7 @@ internal object Transformers528 : Map<Long, Lambda528> by mapOf(
         if (msg.msgGroupMsgSync != null) {
             when (msg.msgGroupMsgSync.msgType) {
                 1, 2 -> {
-                    bot.groupListModifyLock.withLock {
+                    bot.components[ContactUpdater].groupListModifyLock.withLock {
                         bot.createGroupForBot(Mirai.calculateGroupUinByGroupCode(msg.msgGroupMsgSync.grpCode))?.let {
                             packetList.add(BotJoinGroupEvent.Active(it))
                         }
@@ -810,7 +816,7 @@ internal object Transformers528 : Map<Long, Lambda528> by mapOf(
                         return@mapNotNull MemberCardChangeEvent(old, new, member)
                     }
                     2 -> {
-                        if (info.value.singleOrNull()?.toInt() != 0) {
+                        if (info.value.singleOrNull()?.code != 0) {
                             bot.logger.debug {
                                 "Unknown Transformers528 0x27L ModGroupMemberProfile, field=${info.field}, value=${info.value}"
                             }

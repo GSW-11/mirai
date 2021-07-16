@@ -35,6 +35,7 @@ import net.mamoe.mirai.internal.utils.io.serialization.readProtoBuf
 import net.mamoe.mirai.internal.utils.io.serialization.writeProtoBuf
 import net.mamoe.mirai.message.data.*
 import net.mamoe.mirai.utils.currentTimeSeconds
+import net.mamoe.mirai.utils.getRandomUnsignedInt
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
@@ -116,11 +117,11 @@ internal object MessageSvcPbSendMsg : OutgoingPacketFactory<MessageSvcPbSendMsg.
         else listOf(message)
 
         val response = mutableListOf<OutgoingPacket>()
-        val div = if (fragmented.size == 1) 0 else Random.nextInt().absoluteValue
+        val div = if (fragmented.size == 1) 0 else getRandomUnsignedInt()
         val pkgNum = fragmented.size
 
         val seqIds = sequenceIdsInitializer(pkgNum)
-        val randIds0 = IntArray(pkgNum) { Random.nextInt().absoluteValue }
+        val randIds0 = IntArray(pkgNum) { getRandomUnsignedInt() }
         sequenceIds.set(seqIds)
         randIds.set(randIds0)
         postInit()
@@ -142,6 +143,25 @@ internal object MessageSvcPbSendMsg : OutgoingPacketFactory<MessageSvcPbSendMsg.
             })
         }
         return response
+    }
+
+    internal fun PttMessage.toPtt() = run {
+        (this.pttInternalInstance as? ImMsgBody.Ptt)?.let { return it }
+        ImMsgBody.Ptt(
+            fileName = fileName.toByteArray(),
+            fileMd5 = md5,
+            boolValid = true,
+            fileSize = fileSize.toInt(),
+            fileType = 4,
+            pbReserve = byteArrayOf(0),
+            format = let {
+                if (it is Voice) {
+                    it.codec
+                } else {
+                    0
+                }
+            }
+        )
     }
 
     /**
@@ -182,7 +202,7 @@ internal object MessageSvcPbSendMsg : OutgoingPacketFactory<MessageSvcPbSendMsg.
             sequenceIds = sequenceIds,
             randIds = randIds,
             sequenceIdsInitializer = { size ->
-                IntArray(size) { client.nextFriendSeq() }
+                IntArray(size) { client.atomicNextMessageSequenceId() }
             },
             postInit = {
                 source(
@@ -220,10 +240,11 @@ internal object MessageSvcPbSendMsg : OutgoingPacketFactory<MessageSvcPbSendMsg.
         return buildOutgoingMessageCommon(
             client = client,
             message = message,
-            fragmentTranslator = {
+            fragmentTranslator = { subChain ->
                 ImMsgBody.MsgBody(
                     richText = ImMsgBody.RichText(
-                        elems = it.toRichTextElems(messageTarget = targetFriend, withGeneralFlags = true)
+                        elems = subChain.toRichTextElems(messageTarget = targetFriend, withGeneralFlags = true),
+                        ptt = subChain[PttMessage]?.toPtt(),
                     )
                 )
             },
@@ -300,7 +321,7 @@ internal object MessageSvcPbSendMsg : OutgoingPacketFactory<MessageSvcPbSendMsg.
         targetMember: Member,
         message: MessageChain,
         source: OnlineMessageSourceToTempImpl
-    ): OutgoingPacket = buildOutgoingUniPacket(client) {
+    ) = buildOutgoingUniPacket(client) {
         writeProtoBuf(
             MsgSvc.PbSendMsgReq.serializer(), MsgSvc.PbSendMsgReq(
                 routingHead = MsgSvc.RoutingHead(
@@ -340,23 +361,7 @@ internal object MessageSvcPbSendMsg : OutgoingPacketFactory<MessageSvcPbSendMsg.
                 ImMsgBody.MsgBody(
                     richText = ImMsgBody.RichText(
                         elems = subChain.toRichTextElems(messageTarget = targetGroup, withGeneralFlags = true),
-                        ptt = subChain[PttMessage]?.run {
-                            ImMsgBody.Ptt(
-                                fileName = fileName.toByteArray(),
-                                fileMd5 = md5,
-                                boolValid = true,
-                                fileSize = fileSize.toInt(),
-                                fileType = 4,
-                                pbReserve = byteArrayOf(0),
-                                format = let {
-                                    if (it is Voice) {
-                                        it.codec
-                                    } else {
-                                        0
-                                    }
-                                }
-                            )
-                        }
+                        ptt = subChain[PttMessage]?.toPtt()
 
                     )
                 )
@@ -379,7 +384,7 @@ internal object MessageSvcPbSendMsg : OutgoingPacketFactory<MessageSvcPbSendMsg.
             sequenceIds = sequenceIds,
             randIds = randIds,
             sequenceIdsInitializer = { size ->
-                IntArray(size) { client.nextFriendSeq() }
+                IntArray(size) { client.atomicNextMessageSequenceId() }
             },
             postInit = {
                 randIds.get().forEach { id ->

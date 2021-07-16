@@ -28,7 +28,6 @@ import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.coroutineContext
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
-import kotlin.time.milliseconds
 
 /**
  * [Bot] 配置. 用于 [BotFactory.newBot]
@@ -119,7 +118,7 @@ public open class BotConfiguration { // open for Java
      *   val bot = Bot() {
      *     inheritCoroutineContext()
      *   }
-     *   bot.subscribe { ... }
+     *   bot.eventChannel.subscribe { ... }
      *
      *   // 主线程不会退出, 直到 Bot 离线.
      * }
@@ -149,8 +148,43 @@ public open class BotConfiguration { // open for Java
      * 状态心跳包周期. 过长会导致掉线.
      * 该值会在登录时根据服务器下发的配置自动进行更新.
      * @since 2.6
+     * @see heartbeatStrategy
      */
     public var statHeartbeatPeriodMillis: Long = 300.secondsToMillis
+
+    /**
+     * 心跳策略.
+     * @since 2.6.3
+     */
+    public var heartbeatStrategy: HeartbeatStrategy = HeartbeatStrategy.STAT_HB
+
+    /**
+     * 心跳策略.
+     * @since 2.6.3
+     */
+    public enum class HeartbeatStrategy {
+        /**
+         * 使用 2.6.0 增加的*状态心跳* (Stat Heartbeat). 通常推荐这个模式.
+         *
+         * 该模式大多数情况下更稳定. 但有些账号使用这个模式时会遇到一段时间后发送消息成功但客户端不可见的问题.
+         */
+        STAT_HB,
+
+        /**
+         * 不发送状态心跳, 而是发送*切换在线状态* (可能会导致频繁的好友或客户端上线提示, 也可能产生短暂 (几秒) 发送消息不可见的问题).
+         *
+         * 建议在 [STAT_HB] 不可用时使用 [REGISTER].
+         */
+        REGISTER,
+
+        /**
+         * 不主动维护会话. 多数账号会每 16 分钟掉线然后重连. 则会有短暂的不可用时间.
+         *
+         * 仅当 [STAT_HB] 和 [REGISTER] 都造成无法接收等问题时使用.
+         * 同时请在 [https://github.com/mamoe/mirai/issues/1209] 提交问题.
+         */
+        NONE;
+    }
 
     /**
      * 每次心跳时等待结果的时间.
@@ -159,9 +193,11 @@ public open class BotConfiguration { // open for Java
     public var heartbeatTimeoutMillis: Long = 5.secondsToMillis
 
     /** 心跳失败后的第一次重连前的等待时间. */
+    @Deprecated("Useless since new network. Please just remove this.", level = DeprecationLevel.WARNING)
     public var firstReconnectDelayMillis: Long = 5.secondsToMillis
 
     /** 重连失败后, 继续尝试的每次等待时间 */
+    @Deprecated("Useless since new network. Please just remove this.", level = DeprecationLevel.WARNING)
     public var reconnectPeriodMillis: Long = 5.secondsToMillis
 
     /** 最多尝试多少次重连 */
@@ -434,9 +470,9 @@ public open class BotConfiguration { // open for Java
          */
         @ExperimentalTime
         public inline var saveInterval: Duration
-            @JvmSynthetic inline get() = saveIntervalMillis.milliseconds
+            @JvmSynthetic inline get() = Duration.milliseconds(saveIntervalMillis)
             @JvmSynthetic inline set(v) {
-                saveIntervalMillis = v.toLongMilliseconds()
+                saveIntervalMillis = v.inWholeMilliseconds
             }
 
         /**
@@ -512,7 +548,11 @@ public open class BotConfiguration { // open for Java
             new.parentCoroutineContext = parentCoroutineContext
             new.heartbeatPeriodMillis = heartbeatPeriodMillis
             new.heartbeatTimeoutMillis = heartbeatTimeoutMillis
+            new.statHeartbeatPeriodMillis = statHeartbeatPeriodMillis
+            new.heartbeatStrategy = heartbeatStrategy
+            @Suppress("DEPRECATION")
             new.firstReconnectDelayMillis = firstReconnectDelayMillis
+            @Suppress("DEPRECATION")
             new.reconnectPeriodMillis = reconnectPeriodMillis
             new.reconnectionRetryTimes = reconnectionRetryTimes
             new.autoReconnectOnForceOffline = autoReconnectOnForceOffline

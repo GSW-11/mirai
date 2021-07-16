@@ -14,7 +14,6 @@ import kotlinx.coroutines.runBlocking
 import net.mamoe.mirai.contact.Contact
 import net.mamoe.mirai.contact.Group
 import net.mamoe.mirai.contact.isOperator
-import net.mamoe.mirai.internal.EMPTY_BYTE_ARRAY
 import net.mamoe.mirai.internal.asQQAndroidBot
 import net.mamoe.mirai.internal.contact.groupCode
 import net.mamoe.mirai.internal.message.FileMessageImpl
@@ -30,7 +29,9 @@ import net.mamoe.mirai.message.MessageReceipt
 import net.mamoe.mirai.message.data.FileMessage
 import net.mamoe.mirai.message.data.sendTo
 import net.mamoe.mirai.utils.*
+import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
 import net.mamoe.mirai.utils.RemoteFile.Companion.ROOT_PATH
+import java.io.File
 import java.util.*
 import kotlin.contracts.contract
 
@@ -119,7 +120,7 @@ internal class RemoteFileImpl(
         get() {
             if (path == ROOT_PATH) return null
             val s = path.substringBeforeLast('/')
-            return RemoteFileImpl(contact, if (s.isEmpty()) ROOT_PATH else s)
+            return RemoteFileImpl(contact, s.ifEmpty { ROOT_PATH })
         }
 
     /**
@@ -189,6 +190,9 @@ internal class RemoteFileImpl(
     }
 
     override suspend fun isFile(): Boolean = this.getFileFolderInfo().checkExists(this.path).isFile
+
+    // compiler bug
+    override suspend fun isDirectory(): Boolean = !isFile()
     override suspend fun length(): Long = this.getFileFolderInfo().checkExists(this.path).size
     override suspend fun exists(): Boolean = this.getFileFolderInfo() != null
     override suspend fun getInfo(): RemoteFile.FileInfo? {
@@ -250,6 +254,9 @@ internal class RemoteFileImpl(
             item.resolveToFile()
         }
     }
+
+    // compiler bug
+    override suspend fun listFilesCollection(): List<RemoteFile> = listFiles().toList()
 
     @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
     @OptIn(JavaFriendlyAPI::class)
@@ -317,6 +324,9 @@ internal class RemoteFileImpl(
         return null
     }
 
+    // compiler bug
+    override suspend fun resolveById(id: String): RemoteFile? = resolveById(id, deep = true)
+
     override fun resolveSibling(relative: String): RemoteFileImpl {
         val parent = this.parent
         if (parent == null) {
@@ -350,12 +360,12 @@ internal class RemoteFileImpl(
                     parentFolderId = info.parentFolderId,
                 ).sendAndExpect(bot).toResult("RemoteFile.delete", checkResp = false).getOrThrow().int32RetCode == 0
             }
-//            recursively -> {
-//                this.listFiles().collect { child ->
-//                    child.delete()
-//                }
-//                this.delete()
-//            }
+            //            recursively -> {
+            //                this.listFiles().collect { child ->
+            //                    child.delete()
+            //                }
+            //                this.delete()
+            //            }
             else -> {
                 // natively 'recursive'
                 FileManagement.DeleteFolder(
@@ -393,14 +403,14 @@ internal class RemoteFileImpl(
             // TODO: 2021/3/4 cross-group file move
 
             //                target.mkdir()
-//                val targetFolderId = target.getIdSmart() ?: return false
-//                this.listFiles().mapNotNull { it.checkIsImpl().getFileFolderInfo() }.collect {
-//                    FileManagement.MoveFile(client, contact.id, it.busId, it.id, it.parentFolderId, targetFolderId)
-//                        .sendAndExpect(bot).toResult("RemoteFile.moveTo", checkResp = false).getOrThrow()
-//
-//                    // TODO: 2021/3/3 batch packets
-//                }
-//                this.delete() // it is now empty
+            //                val targetFolderId = target.getIdSmart() ?: return false
+            //                this.listFiles().mapNotNull { it.checkIsImpl().getFileFolderInfo() }.collect {
+            //                    FileManagement.MoveFile(client, contact.id, it.busId, it.id, it.parentFolderId, targetFolderId)
+            //                        .sendAndExpect(bot).toResult("RemoteFile.moveTo", checkResp = false).getOrThrow()
+            //
+            //                    // TODO: 2021/3/3 batch packets
+            //                }
+            //                this.delete() // it is now empty
 
             error("Cross-group file operation is not yet supported.")
         }
@@ -431,7 +441,7 @@ internal class RemoteFileImpl(
 
     private suspend fun upload0(
         resource: ExternalResource,
-        callback: RemoteFile.ProgressionCallback?
+        callback: RemoteFile.ProgressionCallback?,
     ): Oidb0x6d6.UploadFileRspBody? {
         val parent = parent ?: return null
         val parentInfo = parent.getFileFolderInfo() ?: return null
@@ -516,7 +526,7 @@ internal class RemoteFileImpl(
 
     override suspend fun upload(
         resource: ExternalResource,
-        callback: RemoteFile.ProgressionCallback?
+        callback: RemoteFile.ProgressionCallback?,
     ): FileMessage {
         val resp = upload0(resource, null) ?: error("Failed to upload file.")
         return FileMessageImpl(
@@ -524,12 +534,37 @@ internal class RemoteFileImpl(
         )
     }
 
+    // compiler bug
+    override suspend fun upload(resource: ExternalResource): FileMessage {
+        return upload(resource, null)
+    }
+
+    // compiler bug
+    override suspend fun upload(file: File, callback: RemoteFile.ProgressionCallback?): FileMessage =
+        file.toExternalResource().use { upload(it, callback) }
+
+    //compiler bug
+    override suspend fun upload(file: File): FileMessage {
+        // Dear compiler:
+        //
+        // Please generate invokeinterface.
+        //
+        // Yours Sincerely
+        // Him188
+        return file.toExternalResource().use { upload(it) }
+    }
+
     override suspend fun uploadAndSend(resource: ExternalResource): MessageReceipt<Contact> {
+        @Suppress("DEPRECATION")
         return upload(resource).sendTo(contact)
     }
 
-//    override suspend fun writeSession(resource: ExternalResource): FileUploadSession {
-//    }
+    // compiler bug
+    override suspend fun uploadAndSend(file: File): MessageReceipt<Contact> =
+        file.toExternalResource().use { uploadAndSend(it) }
+
+    //    override suspend fun writeSession(resource: ExternalResource): FileUploadSession {
+    //    }
 
     override suspend fun getDownloadInfo(): RemoteFile.DownloadInfo? {
         val info = getFileFolderInfo() ?: return null

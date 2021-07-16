@@ -6,6 +6,8 @@
 
 [Mirai 生态概览](mirai-ecology.md)
 
+[Mirai VuePress 文档](https://docs.mirai.mamoe.net/)
+
 ## 社区 SDK
 
 **mirai 官方提供 [Kotlin/Java 等 JVM 平台语言开发支持](#jvm-平台-mirai-开发)。如果不熟悉这些语言，请使用以下社区 SDK：**
@@ -35,9 +37,14 @@
 [Nambers/MiraiCP]:https://github.com/Nambers/MiraiCP
 [drinkal/Mirai-js]:https://github.com/drinkal/Mirai-js
 [Coloryr/ColorMirai]: https://github.com/Coloryr/ColorMirai
+[AHpxChina/Mirai.Net]: https://github.com/AHpxChina/Mirai.Net
+[Shimogawa/rubirai]: https://github.com/Shimogawa/rubirai
+[Excaive/miraicle]: https://github.com/Excaive/miraicle
 
 [OneBot]: https://github.com/howmanybots/onebot
 [Mirai HTTP]: https://github.com/project-mirai/mirai-api-http
+[jerrita/saaya]: https://github.com/jerrita/saaya
+[YiriMirai]: https://github.com/YiriMiraiProject/YiriMirai
 
 ### 原生接口
 
@@ -69,11 +76,16 @@
 |:--------------------------|:--------------------------------------------|
 | `Python`                  | [Graia Framework][GraiaProject/Application] |
 | `Python`                  | [NoneBot]                                   |
+| `Python`                  | [jerrita/saaya]                             |
+| `Python`                  | [YiriMirai]                                 |
+| `Python`                  | [Excaive/miraicle]                          |
 | `C++`                     | [cyanray/mirai-cpp]                         |
 | `C++`                     | [Chlorie/miraipp]                           |
 | `C#`                      | [Executor-Cheng/mirai-CSharp]               |
 | `C#`                      | [Hyperai][theGravityLab/ProjHyperai]        |
 | `C#`                      | [Coloryr/ColorMirai]                        |
+| `C#`                      | [AhpxChina/Mirai.Net]                       |
+| `Ruby`                    | [Shimogawa/rubirai]                         |
 | `Rust`                    | [HoshinoTented/mirai-rs]                    |
 | `JavaScript` / Node.js    | [RedBeanN/node-mirai]                       |
 | `JavaScript` / TypeScript | [YunYouJun/mirai-ts]                        |

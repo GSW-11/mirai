@@ -16,19 +16,19 @@ import net.mamoe.mirai.contact.*
 import net.mamoe.mirai.event.nextEventOrNull
 import net.mamoe.mirai.internal.MiraiImpl
 import net.mamoe.mirai.internal.asQQAndroidBot
-import net.mamoe.mirai.internal.forwardMessage
-import net.mamoe.mirai.internal.longMessage
+import net.mamoe.mirai.internal.getMiraiImpl
 import net.mamoe.mirai.internal.message.*
+import net.mamoe.mirai.internal.message.LightMessageRefiner.refineLight
 import net.mamoe.mirai.internal.network.Packet
 import net.mamoe.mirai.internal.network.QQAndroidClient
+import net.mamoe.mirai.internal.network.components.MessageSvcSyncer
+import net.mamoe.mirai.internal.network.handler.logger
 import net.mamoe.mirai.internal.network.protocol.data.proto.MsgComm
 import net.mamoe.mirai.internal.network.protocol.packet.OutgoingPacket
 import net.mamoe.mirai.internal.network.protocol.packet.chat.FileManagement
 import net.mamoe.mirai.internal.network.protocol.packet.chat.MusicSharePacket
 import net.mamoe.mirai.internal.network.protocol.packet.chat.image.ImgStore
 import net.mamoe.mirai.internal.network.protocol.packet.chat.receive.*
-import net.mamoe.mirai.internal.network.protocol.packet.chat.receive.createToFriend
-import net.mamoe.mirai.internal.network.protocol.packet.chat.receive.createToGroup
 import net.mamoe.mirai.internal.network.protocol.packet.sendAndExpect
 import net.mamoe.mirai.message.MessageReceipt
 import net.mamoe.mirai.message.data.*
@@ -36,7 +36,9 @@ import net.mamoe.mirai.utils.castOrNull
 import net.mamoe.mirai.utils.currentTimeSeconds
 
 /**
- * 通用处理器
+ * 处理 mirai 消息系统 `Message` 到协议数据结构的转换.
+ *
+ * 外部调用 [sendMessageImpl]
  */
 internal abstract class SendMessageHandler<C : Contact> {
     abstract val contact: C
@@ -112,7 +114,7 @@ internal abstract class SendMessageHandler<C : Contact> {
     }
 
     /**
-     * Final process
+     * Final process. Convert transformed message to protocol internals and transfer to server
      */
     suspend fun sendMessagePacket(
         originalMessage: Message,
@@ -120,6 +122,7 @@ internal abstract class SendMessageHandler<C : Contact> {
         finalMessage: MessageChain,
         step: SendMessageStep,
     ): MessageReceipt<C> {
+        bot.components[MessageSvcSyncer].joinSync()
 
         val group = contact
 
@@ -167,12 +170,12 @@ internal abstract class SendMessageHandler<C : Contact> {
 
                         source = CompletableDeferred(constructSourceForSpecialMessage(finalMessage, 3116))
                     }
-//                    is CommonOidbResponse<*> -> {
-//                        when (resp.toResult("send message").getOrThrow()) {
-//                            is Oidb0x6d9.FeedsRspBody -> {
-//                            }
-//                        }
-//                    }
+                    //                    is CommonOidbResponse<*> -> {
+                    //                        when (resp.toResult("send message").getOrThrow()) {
+                    //                            is Oidb0x6d9.FeedsRspBody -> {
+                    //                            }
+                    //                        }
+                    //                    }
                 }
             }
 
@@ -187,7 +190,7 @@ internal abstract class SendMessageHandler<C : Contact> {
                 )
             }
 
-            return MessageReceipt(sourceAwait, contact)
+            return sourceAwait.createMessageReceipt(contact, true)
         }
     }
 
@@ -195,7 +198,7 @@ internal abstract class SendMessageHandler<C : Contact> {
         client: QQAndroidClient,
         message: MessageChain,
         fragmented: Boolean,
-        sourceCallback: (Deferred<OnlineMessageSource.Outgoing>) -> Unit
+        sourceCallback: (Deferred<OnlineMessageSource.Outgoing>) -> Unit,
     ): List<OutgoingPacket> {
         message.takeSingleContent<MusicShare>()?.let { musicShare ->
             return listOf(
@@ -229,9 +232,9 @@ internal abstract class SendMessageHandler<C : Contact> {
     ): OnlineMessageSource.Outgoing
 
     open suspend fun uploadLongMessageHighway(
-        chain: MessageChain
+        chain: MessageChain,
     ): String = with(contact) {
-        return MiraiImpl.uploadMessageHighway(
+        return getMiraiImpl().uploadMessageHighway(
             bot, this@SendMessageHandler,
             listOf(
                 ForwardMessage.Node(
@@ -262,7 +265,7 @@ internal abstract class SendMessageHandler<C : Contact> {
  */
 internal suspend fun <C : Contact> SendMessageHandler<C>.transformSpecialMessages(message: Message): MessageChain {
     suspend fun processForwardMessage(
-        forward: ForwardMessage
+        forward: ForwardMessage,
     ): ForwardMessageInternal {
         if (!(message is MessageChain && message.contains(IgnoreLengthCheck))) {
             check(forward.nodeList.size <= 200) {
@@ -273,7 +276,7 @@ internal suspend fun <C : Contact> SendMessageHandler<C>.transformSpecialMessage
             }
         }
 
-        val resId = MiraiImpl.uploadMessageHighway(
+        val resId = getMiraiImpl().uploadMessageHighway(
             bot = contact.bot,
             sendMessageHandler = this,
             message = forward.nodeList,
@@ -314,7 +317,7 @@ internal suspend fun <C : Contact> SendMessageHandler<C>.sendMessage(
 /**
  * Might be recalled with [transformedMessage] `is` [LongMessageInternal] if length estimation failed (sendMessagePacket)
  */
-internal suspend fun <C : Contact> SendMessageHandler<C>.sendMessageImpl(
+private suspend fun <C : Contact> SendMessageHandler<C>.sendMessageImpl(
     originalMessage: Message,
     transformedMessage: MessageChain,
     step: SendMessageStep,
@@ -335,7 +338,7 @@ internal sealed class UserSendMessageHandler<C : AbstractUser>(
 
     override suspend fun constructSourceForSpecialMessage(
         finalMessage: MessageChain,
-        fromAppId: Int
+        fromAppId: Int,
     ): OnlineMessageSource.Outgoing {
         throw UnsupportedOperationException("Sending MusicShare or FileMessage to User is not yet supported")
     }
@@ -362,7 +365,7 @@ internal class GroupTempSendMessageHandler(
         MessageSvcPbSendMsg::createToTemp
 }
 
-internal class GroupSendMessageHandler(
+internal open class GroupSendMessageHandler(
     override val contact: GroupImpl,
 ) : SendMessageHandler<GroupImpl>() {
     override val messageSvcSendMessage: (client: QQAndroidClient, contact: GroupImpl, message: MessageChain, fragmented: Boolean, sourceCallback: (Deferred<OnlineMessageSource.Outgoing>) -> Unit) -> List<OutgoingPacket> =
@@ -385,7 +388,7 @@ internal class GroupSendMessageHandler(
 
     override suspend fun constructSourceForSpecialMessage(
         finalMessage: MessageChain,
-        fromAppId: Int
+        fromAppId: Int,
     ): OnlineMessageSource.Outgoing {
 
         val receipt: OnlinePushPbPushGroupMsg.SendGroupMessageReceipt =

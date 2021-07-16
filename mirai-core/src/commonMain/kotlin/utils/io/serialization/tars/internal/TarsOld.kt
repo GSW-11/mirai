@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2020 Mamoe Technologies and contributors.
+ * Copyright 2019-2021 Mamoe Technologies and contributors.
  *
  *  此源代码的使用受 GNU AFFERO GENERAL PUBLIC LICENSE version 3 许可证的约束, 可以在以下链接找到该许可证.
  *  Use of this source code is governed by the GNU AGPLv3 license that can be found through the following link.
@@ -55,13 +55,16 @@ internal fun getSerialId(desc: SerialDescriptor, index: Int): Int? = desc.findAn
 
 //@Suppress("DEPRECATION_ERROR")
 @OptIn(InternalSerializationApi::class, ExperimentalSerializationApi::class)
-internal class TarsOld internal constructor(private val charset: Charset, override val serializersModule: SerializersModule = EmptySerializersModule) :
+internal class TarsOld internal constructor(
+    private val charset: Charset,
+    override val serializersModule: SerializersModule = EmptySerializersModule,
+) :
     SerialFormat, BinaryFormat {
 
     private inner class ListWriter(
         private val count: Int,
         private val tag: Int,
-        private val parentEncoder: TarsEncoder
+        private val parentEncoder: TarsEncoder,
     ) : TarsEncoder(BytePacketBuilder()) {
         override fun SerialDescriptor.getTag(index: Int): Int {
             return 0
@@ -75,7 +78,7 @@ internal class TarsOld internal constructor(private val charset: Charset, overri
     }
 
     private inner class TarsMapWriter(
-        output: BytePacketBuilder
+        output: BytePacketBuilder,
     ) : TarsEncoder(output) {
         override fun SerialDescriptor.getTag(index: Int): Int {
             return if (index % 2 == 0) 0 else 1
@@ -97,7 +100,7 @@ internal class TarsOld internal constructor(private val charset: Charset, overri
     @Suppress("unused", "MemberVisibilityCanBePrivate")
     @OptIn(ExperimentalIoApi::class)
     private open inner class TarsEncoder(
-        val output: BytePacketBuilder
+        val output: BytePacketBuilder,
     ) : TaggedEncoder<Int>() {
         override val serializersModule get() = this@TarsOld.serializersModule
 
@@ -109,7 +112,7 @@ internal class TarsOld internal constructor(private val charset: Charset, overri
          * 序列化最开始的时候的
          */
         override fun beginStructure(
-            descriptor: SerialDescriptor
+            descriptor: SerialDescriptor,
         ): CompositeEncoder =
             when (descriptor.kind) {
                 StructureKind.LIST -> this
@@ -135,9 +138,9 @@ internal class TarsOld internal constructor(private val charset: Charset, overri
                 }
             }
             serializer.descriptor.kind == StructureKind.LIST
-                && value is ByteArray -> encodeTaggedByteArray(popTag(), value as ByteArray)
+                    && value is ByteArray -> encodeTaggedByteArray(popTag(), value as ByteArray)
             serializer.descriptor.kind == StructureKind.LIST
-                && serializer.descriptor.getElementDescriptor(0) is PrimitiveKind -> {
+                    && serializer.descriptor.getElementDescriptor(0) is PrimitiveKind -> {
                 serializer.serialize(
                     ListWriter(
                         when (value) {
@@ -235,7 +238,7 @@ internal class TarsOld internal constructor(private val charset: Charset, overri
         }
 
         public override fun encodeTaggedChar(tag: Int, value: Char) {
-            encodeTaggedByte(tag, value.toByte())
+            encodeTaggedByte(tag, value.code.toByte())
         }
 
         public override fun encodeTaggedEnum(tag: Int, enumDescriptor: SerialDescriptor, ordinal: Int) {

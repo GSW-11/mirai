@@ -18,13 +18,13 @@ import net.mamoe.mirai.internal.contact.info.MemberInfoImpl
 import net.mamoe.mirai.internal.network.protocol.data.jce.StTroopNum
 import net.mamoe.mirai.internal.utils.ScheduledJob
 import net.mamoe.mirai.internal.utils.groupCacheDir
+import net.mamoe.mirai.utils.MiraiLogger
 import net.mamoe.mirai.utils.createFileIfNotExists
 import net.mamoe.mirai.utils.info
 import net.mamoe.mirai.utils.runBIO
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
-import kotlin.time.milliseconds
 
 internal val JsonForCache = Json {
     encodeDefaults = true
@@ -59,6 +59,7 @@ internal fun GroupMemberListCache.isValid(stTroopNum: StTroopNum): Boolean {
 
 internal class GroupMemberListCaches(
     private val bot: QQAndroidBot,
+    private val logger: MiraiLogger,
 ) {
     init {
         @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
@@ -71,7 +72,7 @@ internal class GroupMemberListCaches(
 
     private val changedGroups: MutableCollection<Long> = ConcurrentLinkedQueue()
     private val groupListSaver: ScheduledJob by lazy {
-        ScheduledJob(bot.coroutineContext, bot.configuration.contactListCache.saveIntervalMillis.milliseconds) {
+        ScheduledJob(bot.coroutineContext, bot.configuration.contactListCache.saveIntervalMillis) {
             runBIO { saveGroupCaches() }
         }
     }
@@ -105,7 +106,7 @@ internal class GroupMemberListCaches(
                 file.createFileIfNotExists()
                 file.writeText(JsonForCache.encodeToString(GroupMemberListCache.serializer(), cache))
             }
-            bot.network.logger.info { "Saved ${currentChanged.size} groups to local cache." }
+            logger.info { "Saved ${currentChanged.size} groups to local cache." }
         }
     }
 

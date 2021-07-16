@@ -28,18 +28,18 @@ internal data class MemberInfoImpl(
     override val anonymousId: String?,
     override val joinTimestamp: Int = currentTimeSeconds().toInt(),
     override var lastSpeakTimestamp: Int = 0,
-    override val isOfficialBot: Boolean = false
+    override val isOfficialBot: Boolean = false,
 ) : MemberInfo {
     constructor(
         client: QQAndroidClient,
         jceInfo: StTroopMemberInfo,
-        groupOwnerId: Long
+        groupOwnerId: Long,
     ) : this(
         uin = jceInfo.memberUin,
         nick = jceInfo.nick,
         permission = when {
             jceInfo.memberUin == groupOwnerId -> MemberPermission.OWNER
-            jceInfo.dwFlag == 1L -> MemberPermission.ADMINISTRATOR
+            jceInfo.dwFlag?.takeLowestOneBit() == 1L -> MemberPermission.ADMINISTRATOR
             else -> MemberPermission.MEMBER
         },
         remark = jceInfo.autoRemark.orEmpty(),

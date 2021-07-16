@@ -1,17 +1,16 @@
 /*
- * Copyright 2019-2020 Mamoe Technologies and contributors.
+ * Copyright 2019-2021 Mamoe Technologies and contributors.
  *
- *  此源代码的使用受 GNU AFFERO GENERAL PUBLIC LICENSE version 3 许可证的约束, 可以在以下链接找到该许可证.
- *  Use of this source code is governed by the GNU AGPLv3 license that can be found through the following link.
+ * 此源代码的使用受 GNU AFFERO GENERAL PUBLIC LICENSE version 3 许可证的约束, 可以在以下链接找到该许可证.
+ * Use of this source code is governed by the GNU AGPLv3 license that can be found through the following link.
  *
- *  https://github.com/mamoe/mirai/blob/master/LICENSE
+ * https://github.com/mamoe/mirai/blob/dev/LICENSE
  */
 
 @file:Suppress("NOTHING_TO_INLINE", "INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 
 package net.mamoe.mirai.contact
 
-import kotlinx.serialization.Serializable
 import net.mamoe.mirai.Bot
 import kotlin.internal.InlineOnly
 
@@ -19,6 +18,8 @@ import kotlin.internal.InlineOnly
  * 群成员的权限.
  *
  * 可通过 [compareTo] 判断是否有更高的权限.
+ *
+ * 若要获得成员的权限, 使用 [Member.permission]. 若要获得 [Bot] 在某个群的权限, 使用 [Group.botPermission], 或 [Group.botAsMember] 再获取其 [Member.permission].
  *
  * @see isOwner 判断权限是否为群主
  * @see isOperator 判断权限是否为管理员或群主

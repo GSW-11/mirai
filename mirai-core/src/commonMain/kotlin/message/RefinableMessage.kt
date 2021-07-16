@@ -10,11 +10,15 @@
 package net.mamoe.mirai.internal.message
 
 import net.mamoe.mirai.Bot
+import net.mamoe.mirai.internal.message.DeepMessageRefiner.refineDeep
+import net.mamoe.mirai.internal.message.LightMessageRefiner.refineLight
 import net.mamoe.mirai.message.data.*
 
 /**
  * 在接收解析消息后会经过一层转换的消息.
- * @see MessageChain.refineLight
+ *
+ * @see DeepMessageRefiner.refineDeep
+ * @see LightMessageRefiner.refineLight
  */
 internal interface RefinableMessage : SingleMessage {
 
@@ -41,13 +45,13 @@ internal interface RefinableMessage : SingleMessage {
 internal sealed class MessageRefiner {
     protected inline fun MessageChain.refineImpl(
         bot: Bot,
-        refineAction: (message: RefinableMessage) -> Message?
+        refineAction: (message: RefinableMessage) -> Message?,
     ): MessageChain {
         val convertLineSeparator = bot.configuration.convertLineSeparator
 
         if (none {
                 it is RefinableMessage
-                    || (it is PlainText && convertLineSeparator && it.content.contains('\r'))
+                        || (it is PlainText && convertLineSeparator && it.content.contains('\r'))
             }
         ) return this
 
@@ -80,7 +84,7 @@ internal sealed class MessageRefiner {
 
 @Suppress("unused")
 internal class RefineContextKey<T : Any>(
-    val name: String?
+    val name: String?,
 ) {
     override fun toString(): String {
         return buildString {
@@ -117,7 +121,7 @@ internal object EmptyRefineContext : RefineContext {
 
 @Suppress("UNCHECKED_CAST")
 internal class SimpleRefineContext(
-    private val delegate: MutableMap<RefineContextKey<*>, Any>
+    private val delegate: MutableMap<RefineContextKey<*>, Any> = mutableMapOf(),
 ) : MutableRefineContext {
 
     override fun contains(key: RefineContextKey<*>): Boolean = delegate.containsKey(key)
@@ -134,6 +138,9 @@ internal class SimpleRefineContext(
     }
 }
 
+/**
+ * 执行不需要 `suspend` 的 refine. 用于 [MessageSource.originalMessage].
+ */
 internal object LightMessageRefiner : MessageRefiner() {
     fun MessageChain.refineLight(
         bot: Bot,
@@ -143,6 +150,9 @@ internal object LightMessageRefiner : MessageRefiner() {
     }
 }
 
+/**
+ * 执行需要 `suspend` 的 refine. 用于解析到的消息.
+ */
 internal object DeepMessageRefiner : MessageRefiner() {
     suspend fun MessageChain.refineDeep(
         bot: Bot,

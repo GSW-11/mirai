@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2020 Mamoe Technologies and contributors.
+ * Copyright 2019-2021 Mamoe Technologies and contributors.
  *
  *  此源代码的使用受 GNU AFFERO GENERAL PUBLIC LICENSE version 3 许可证的约束, 可以在以下链接找到该许可证.
  *  Use of this source code is governed by the GNU AGPLv3 license that can be found through the following link.
@@ -29,7 +29,13 @@ internal class LongConn {
             return buildOutgoingUniPacket(client) {
                 writeProtoBuf(
                     Cmd0x352.ReqBody.serializer(),
-                    Cmd0x352.ReqBody(1, msgTryupImgReq = listOf(req))
+                    Cmd0x352.ReqBody(
+                        subcmd = 1,
+                        netType = 3,
+                        msgTryupImgReq = listOf(req),
+                        msgDelImgReq = listOf(),
+                        msgGetimgUrlReq = listOf(),
+                    )
                 )
             }
         }
@@ -45,7 +51,7 @@ internal class LongConn {
             check(resp.subcmd == 1)
             val imgRsp = resp.msgTryupImgRsp.first()
             if (imgRsp.result != 0) {
-                return Response.Failed(imgRsp.failMsg ?: "")
+                return Response.Failed(imgRsp.failMsg)
             }
 
             return if (imgRsp.boolFileExit) {
@@ -58,8 +64,14 @@ internal class LongConn {
 
         sealed class Response : Packet {
             data class FileExists(val resourceId: String, val imageInfo: Cmd0x352.ImgInfo) : Response()
+
             @Suppress("ArrayInDataClass")
-            data class RequireUpload(val resourceId: String, val serverIp: List<Int>, val serverPort: List<Int>, val uKey: ByteArray) : Response()
+            data class RequireUpload(
+                val resourceId: String,
+                val serverIp: List<Int>,
+                val serverPort: List<Int>,
+                val uKey: ByteArray
+            ) : Response()
 
             data class Failed(val message: String) : Response()
         }

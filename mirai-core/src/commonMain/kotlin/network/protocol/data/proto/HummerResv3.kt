@@ -13,8 +13,8 @@ package net.mamoe.mirai.internal.network.protocol.data.proto
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
-import net.mamoe.mirai.internal.network.protocol.packet.EMPTY_BYTE_ARRAY
 import net.mamoe.mirai.internal.utils.io.ProtoBuf
+import net.mamoe.mirai.utils.EMPTY_BYTE_ARRAY
 
 /**
  * v8.5.5
@@ -24,7 +24,7 @@ internal class CustomFaceExtPb : ProtoBuf {
     @Serializable
     internal class AnimationImageShow(
         @JvmField @ProtoNumber(1) val int32EffectId: Int = 0,
-        @JvmField @ProtoNumber(2) val animationParam: ByteArray = EMPTY_BYTE_ARRAY
+        @JvmField @ProtoNumber(2) val animationParam: ByteArray = EMPTY_BYTE_ARRAY,
     ) : ProtoBuf
 
     @Serializable
@@ -46,7 +46,7 @@ internal class CustomFaceExtPb : ProtoBuf {
         @JvmField @ProtoNumber(16) val cameraCaptureTemplateinfo: String = "",
         @JvmField @ProtoNumber(17) val cameraCaptureMaterialname: String = "",
         @JvmField @ProtoNumber(18) val adEmoJumpUrl: String = "",
-        @JvmField @ProtoNumber(19) val adEmoDescStr: String = ""
+        @JvmField @ProtoNumber(19) val adEmoDescStr: String = "",
     ) : ProtoBuf
 }
         
